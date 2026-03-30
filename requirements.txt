@@ -1,0 +1,7 @@
+fastf1
+numpy
+flask
+pandas
+matplotlib
+plotly
+gunicorn
