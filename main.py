@@ -17,7 +17,7 @@ LAUNCHER_HTML = '''<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>F1 Telemetry Tool</title>
+<title>F1 Insight</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -398,8 +398,7 @@ def run():
             d_lo    = round(d_min - d_pad, 2)
             d_hi    = round(d_max + d_pad, 2)
             d_step  = round((d_hi - d_lo) / 4, 2)
-            d_ticks = [round(d_lo + i * d_step, 2)
-                       for i in range(5)]
+            d_ticks = [round(d_lo + i * d_step, 2) for i in range(5)]
             delta_panel = (
                 "{ label:'\u0394 Time (s)', k1:'delta',"
                 " k2:null, min:" + str(d_lo) +
@@ -504,8 +503,8 @@ def run():
                         np.abs(dist - float(row['Distance']))))
                     corners.append({
                         'number': int(row['Number']),
-                        'x': float(x1n[idx]),
-                        'y': float(y1n[idx])
+                        'x':      float(x1n[idx]),
+                        'y':      float(y1n[idx])
                     })
             except Exception:
                 pass
@@ -667,6 +666,16 @@ def run():
                 '      tctx.moveTo(PAD_L,gy);tctx.lineTo(W-PAD_R,gy);\n'
                 '      tctx.stroke();\n'
                 '    });\n'
+                '    if(p.k1==="delta"){\n'
+                '      var zeroY=pyV(0,p.min,p.max,y0,plotH);\n'
+                '      tctx.strokeStyle="rgba(255,255,255,0.15)";\n'
+                '      tctx.lineWidth=1;\n'
+                '      tctx.setLineDash([3,3]);\n'
+                '      tctx.beginPath();\n'
+                '      tctx.moveTo(PAD_L,zeroY);tctx.lineTo(W-PAD_R,zeroY);\n'
+                '      tctx.stroke();\n'
+                '      tctx.setLineDash([]);\n'
+                '    }\n'
                 '    tctx.strokeStyle="rgba(255,255,255,0.6)";\n'
                 '    tctx.lineWidth=1;\n'
                 '    tctx.beginPath();\n'
@@ -694,9 +703,21 @@ def run():
                 '      if(!key)return;\n'
                 '      var arr=D[key];\n'
                 '      if(!arr||arr.length===0)return;\n'
-                '      var lineCol=key==="battery_soc"?"#ff9933":col;\n'
+                '      var lineCol=key==="battery_soc"?"#ff9933":(key==="delta"?"#ffffff":col);\n'
                 '      tctx.strokeStyle=lineCol;\n'
                 '      tctx.lineWidth=1.5;\n'
+                '      if(key==="delta"){\n'
+                '        tctx.beginPath();\n'
+                '        var zeroY=pyV(0,p.min,p.max,y0,plotH);\n'
+                '        tctx.moveTo(pxD(D.dist[0]),zeroY);\n'
+                '        for(var i=0;i<N;i++){\n'
+                '          tctx.lineTo(pxD(D.dist[i]),pyV(arr[i],p.min,p.max,y0,plotH));\n'
+                '        }\n'
+                '        tctx.lineTo(pxD(D.dist[N-1]),zeroY);\n'
+                '        tctx.closePath();\n'
+                '        tctx.fillStyle="rgba(255,255,255,0.04)";\n'
+                '        tctx.fill();\n'
+                '      }\n'
                 '      tctx.beginPath();\n'
                 '      for(var i=0;i<N;i++){\n'
                 '        var x=pxD(D.dist[i]);\n'
@@ -710,7 +731,7 @@ def run():
                 '      var v1=D[p.k1][cur];\n'
                 '      var vy1=pyV(v1,p.min,p.max,y0,plotH);\n'
                 '      var lbl=p.label.indexOf("Time")>=0?(v1>=0?"+":"")+v1.toFixed(3):Math.round(v1).toString();\n'
-                '      var col1=p.k1==="battery_soc"?"#ff9933":D.c1;\n'
+                '      var col1=p.k1==="battery_soc"?"#ff9933":(p.k1==="delta"?"#ffffff":D.c1);\n'
                 '      tctx.fillStyle=col1;\n'
                 '      tctx.font="bold 10px Segoe UI";\n'
                 '      tctx.textAlign="left";\n'
@@ -873,8 +894,8 @@ def run():
                 ' - ' + str(year) + ' ' + event_name + '</title>'
                 '<style>'
                 '*{box-sizing:border-box;margin:0;padding:0;}'
-                'body{background:#0a0a0a;color:#fff;'
-                'font-family:Segoe UI,sans-serif;overflow:hidden;}'
+                'html,body{height:100%;background:#0a0a0a;'
+                'color:#fff;font-family:Segoe UI,sans-serif;overflow:hidden;}'
                 '#header{padding:14px 24px;border-bottom:1px solid #222;'
                 'height:64px;display:flex;align-items:center;'
                 'justify-content:space-between;}'
