@@ -445,15 +445,18 @@ def run():
                     else '15% reserve - race strategy'
                 )
                 yield from send(
-                    'Modelling battery SOC (' +
-                    reserve_str +
-                    ', straight-only, corner-gated, 95% start)...')
+                    'Modelling battery SOC '
+                    '(2026 regs: speed-dependent deploy cap, '
+                    '8.5MJ harvest limit, corner-gated, 95% start, '
+                    + reserve_str + ')...')
 
-                MGU_K_POWER      = 350000
-                HARVEST_POWER    = 33000
-                CAPACITY_J       = 4000000
+                # 2026 FIA regulation constants
+                HARVEST_POWER    = 33000       # W — harvest rate
+                CAPACITY_J       = 4000000     # J — 4MJ delta SoC limit
+                MAX_HARVEST_J    = 8500000     # J — 8.5MJ per lap harvest cap
                 CORNER_THRESHOLD = 0.15
 
+                # GPS curvature for corner detection
                 dx  = np.gradient(x1)
                 dy  = np.gradient(y1)
                 ddx = np.gradient(dx)
@@ -464,27 +467,60 @@ def run():
                 curv_norm = curvature / (
                     curvature.max() + 1e-10)
 
-                soc = CAPACITY_J * 0.95
+                soc           = CAPACITY_J * 0.95
+                lap_harvested = 0.0
 
                 for i in range(N):
-                    spd       = speed1[i] / 3.6
+                    spd_kph   = speed1[i]
+                    spd_ms    = spd_kph / 3.6
                     thr       = throttle1[i] / 100
                     brk       = brake1[i] / 100
-                    dt        = (dist[1] - dist[0]) / max(spd, 1)
+                    dt        = (dist[1] - dist[0]) / max(spd_ms, 1)
                     in_corner = curv_norm[i] > CORNER_THRESHOLD
 
+                    # 2026 speed-dependent MGU-K deployment cap
+                    # Below 340 km/h: P = min(350, 1800 - 5*v) kW
+                    # Above 340 km/h: P = max(0, 6900 - 20*v) kW
+                    # Above 345 km/h: zero deployment
+                    if spd_kph < 340:
+                        p_deploy_max = min(
+                            350000,
+                            (1800 - 5 * spd_kph) * 1000)
+                    else:
+                        p_deploy_max = max(
+                            0,
+                            (6900 - 20 * spd_kph) * 1000)
+
                     if brk > 0.1:
-                        soc = min(CAPACITY_J,
-                                  soc + HARVEST_POWER * dt)
+                        # Harvest under braking —
+                        # capped by per-lap 8.5MJ limit
+                        if lap_harvested < MAX_HARVEST_J:
+                            harvest = min(
+                                HARVEST_POWER * dt,
+                                MAX_HARVEST_J - lap_harvested)
+                            soc = min(CAPACITY_J,
+                                      soc + harvest)
+                            lap_harvested += harvest
+
                     elif (thr > 0.95
                           and not in_corner
-                          and speed1[i] > 200
+                          and p_deploy_max > 0
                           and soc > CAPACITY_J * reserve):
-                        soc = max(CAPACITY_J * reserve,
-                                  soc - MGU_K_POWER * dt * 0.3)
+                        # Deploy — gated by speed-dependent cap,
+                        # corner detection, and reserve threshold
+                        soc = max(
+                            CAPACITY_J * reserve,
+                            soc - p_deploy_max * dt * 0.3)
+
                     elif thr < 0.5 and brk < 0.1:
-                        soc = min(CAPACITY_J,
-                                  soc + HARVEST_POWER * dt * 0.3)
+                        # Partial harvest when coasting
+                        if lap_harvested < MAX_HARVEST_J:
+                            harvest = min(
+                                HARVEST_POWER * dt * 0.3,
+                                MAX_HARVEST_J - lap_harvested)
+                            soc = min(CAPACITY_J,
+                                      soc + harvest)
+                            lap_harvested += harvest
 
                     battery_soc.append(
                         round(soc / CAPACITY_J * 100, 1))
@@ -834,7 +870,7 @@ def run():
                 '    rctx.fillText(p[3],dx+10,dy+3);\n'
                 '  });\n'
                 '  [["#00cc00","Low"],["#aaaa00","Mid"],["#cc0000","High"]].forEach(function(item,i){\n'
-                '    rctx.fillStyle=item[0];rctx.font="8px Segoe UI";\n'
+                '    rctx.fillStyle=item[0];rctx.font="8px Segae UI";\n'
                 '    rctx.textAlign="left";\n'
                 '    rctx.fillText("■ "+item[1],pad+i*55,H-6);\n'
                 '  });\n'
